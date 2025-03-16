@@ -1,4 +1,5 @@
 import random
+from collections.abc import Generator, Iterable
 from typing import ClassVar
 
 from mitreattack.stix20 import MitreAttackData
@@ -6,20 +7,31 @@ from stix2.datastore.memory import MemoryStore
 from stix2.v20.sdo import AttackPattern, IntrusionSet
 from stix2.v20.sro import Relationship
 
+from attck_stix_agent._serialize import StixProcessor
 from attck_stix_agent._stix import StixImporter
+from attck_stix_agent.exceptions import StixTypeMismatchError
 
 
 class AttckStixManager:
     SUPPORTED_STIX_VERSIONS: ClassVar[tuple[str]] = ("2.0",)
     DEFAULT_STIX_VERSION: ClassVar[str] = "2.0"
+    DEFAULT_STIX_SRC: ClassVar[str] = (
+        "https://github.com/mitre/cti/raw/refs/heads/master/enterprise-attack/enterprise-attack.json"
+    )
 
-    def __init__(self, stix_location: str, stix_version: str | None = None) -> None:
+    def __init__(
+        self, stix_location: str | None = None, stix_version: str | None = None
+    ) -> None:
         if stix_version is None:
             stix_version = self.DEFAULT_STIX_VERSION
+        if stix_location is None:
+            stix_location = self.DEFAULT_STIX_SRC
+
         self.stix_version: str = stix_version
         self.attck_data: MitreAttackData = self._load_stix(
             stix_location, version=self.stix_version
         )
+        self.processor: StixProcessor = StixProcessor()
         self._all_campaigns: list = []
         self._all_datacomponents: list = []
         self._all_datasources: list = []
@@ -31,7 +43,7 @@ class AttckStixManager:
         self._all_techniques: list[AttackPattern] = []
         self._all_tactics: list = []
         self._all_platforms: list[str] = []
-        self._ignore_platforms: list = []
+        self._ignore_platforms: list[str] = []
 
     def _load_memory_store(self, path: str, stix_version: str) -> MemoryStore:
         importer = StixImporter(stix_version=stix_version, allow_custom=True)
@@ -85,7 +97,19 @@ class AttckStixManager:
             self._all_groups = self.attck_data.get_groups(
                 remove_revoked_deprecated=True
             )
-        return random.choice(self._all_groups)  # noqa: S311
+        group = random.choice(self._all_groups)  # noqa: S311
+        if not isinstance(group, IntrusionSet):
+            raise StixTypeMismatchError
+        return group
+
+    def group(self, group: str | None = None) -> IntrusionSet:
+        if not group:
+            return self.random_group()
+
+        stix_group = self.attck_data.get_object_by_stix_id(group)
+        if not isinstance(stix_group, IntrusionSet):
+            raise StixTypeMismatchError
+        return stix_group
 
     def get_matrices(self) -> list:
         if not self._all_matrices:
@@ -121,7 +145,7 @@ class AttckStixManager:
         return self._all_software
 
     def _filter_techniques(
-        self, techniques: list[AttackPattern]
+        self, techniques: Iterable[AttackPattern]
     ) -> list[AttackPattern]:
         filtered_techniques: list[AttackPattern] = []
         ignore_platforms: set[str] = set(self.ignore_platforms)
@@ -162,7 +186,7 @@ class AttckStixManager:
             self._all_platforms = sorted(platforms)
         return self._all_platforms
 
-    def get_techniques_used_by_group(
+    def _get_techniques_used_by_group(
         self, group: str | IntrusionSet
     ) -> list[dict[str, AttackPattern | list[Relationship]]]:
         if not group:
@@ -175,47 +199,24 @@ class AttckStixManager:
         rel_maps: list[dict[str, AttackPattern | list[Relationship]]] = (
             self.attck_data.get_techniques_used_by_group(group_id)
         )
-        techniques: list[AttackPattern] = [rel_map["object"] for rel_map in rel_maps]
-        to_keep_ids: list[str] = [p.id for p in self._filter_techniques(techniques)]
-
-        return list(
-            filter(lambda x: x.get("object", {}).get("id", "") in to_keep_ids, rel_maps)
+        techniques: Generator[AttackPattern, None, None] = (
+            rel_map["object"] for rel_map in rel_maps
+        )  # pyright: ignore [reportAssignmentType]
+        to_keep_ids: Generator[str, None, None] = (
+            p.id for p in self._filter_techniques(techniques)
         )
 
+        return list(
+            filter(lambda x: x.get("object", {}).get("id", "") in to_keep_ids, rel_maps)  # pyright: ignore [reportAttributeAccessIssue]
+        )
 
-def get_kill_chain_phases(
-    technique: AttackPattern, kill_chain: str | None = None
-) -> dict[str, list[str]] | list[str]:
-    """List all phases of all kill chains that the technique applies to.
-
-    Args:
-        technique (AttackPattern):
-            A STIX technique entry.
-        kill_chain (str, optional):
-            Return only phases for the given kill_chain.
-            All kill_chains are returned if None. Defaults to None.
-
-    Raises:
-        TypeError: `technique` is not an `AttackPattern`
-
-    Returns:
-        dict[str, list[str]] | list[str]:
-            Mapping of kill chain names and the phases the technique applies to.
-            A list of phases corresponding to `kill_chain` is returned if a `kill_chain`
-            is given.
-    """
-    if not isinstance(technique, AttackPattern):
-        raise TypeError
-
-    kill_chain_phases: dict[str, list[str]] = {}
-    for phase_obj in technique.get("kill_chain_phases", []):
-        kill_chain_name: str = phase_obj.get("kill_chain_name", "unknown")
-        phase_name: str = phase_obj.get("phase_name", "")
-        phases: list[str] = kill_chain_phases.setdefault(kill_chain_name, [])
-        if phase_name not in phases:
-            phases.append(phase_name)
-    if kill_chain:
-        if kill_chain in kill_chain_phases.keys():
-            return kill_chain_phases[kill_chain]
-        return []
-    return kill_chain_phases
+    def techniques_used_by_group(
+        self, group: str | IntrusionSet
+    ) -> list[AttackPattern]:
+        technique_maps = self._get_techniques_used_by_group(group)
+        techniques = []
+        for technique_map in technique_maps:
+            technique = technique_map.get("object", None)
+            if technique:
+                techniques.append(technique)
+        return techniques
