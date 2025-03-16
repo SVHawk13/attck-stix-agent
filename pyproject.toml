@@ -6,10 +6,12 @@ readme = "README.md"
 authors = [ { name = "Donald Hawkins", email = "code@hawkins.pro" } ]
 requires-python = ">=3.11"
 dependencies = [
+    "fastapi>=0.115.11",
     "mitreattack-python>=3.0.8",
     "requests>=2.32.3",
     "stix2>=3.0.1",
     "typer>=0.15.2",
+    "uvicorn>=0.34.0",
 ]
 
 [build-system]
