@@ -26,3 +26,12 @@ def get_group(group: str) -> dict:
 def random_group() -> dict:
     group_dict: dict = stix_manager.processor.group_to_dict(stix_manager.group())
     return group_dict
+
+
+@api.get("/groups")
+def all_groups() -> list[dict]:
+    groups: list[dict] = [
+        stix_manager.processor.group_to_dict(group)
+        for group in stix_manager.get_groups()
+    ]
+    return groups
