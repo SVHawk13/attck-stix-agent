@@ -12,6 +12,19 @@ def to_path(__path: str | PathLike) -> Path:
     return Path(__path).expanduser().resolve()
 
 
+def make_file_parent(__path: str | PathLike) -> None:
+    p: Path = to_path(__path)
+    if p.exists():
+        if p.is_dir():
+            raise ValueError
+        if not p.is_file():
+            raise ValueError
+        parent = p.parent
+    else:
+        parent = p.parent
+    parent.mkdir(parents=True, exist_ok=True)
+
+
 def _read_file(
     __path: str | PathLike,
     mode: Literal["b", "t"],
@@ -66,9 +79,10 @@ def read_and_parse_file(
 
 
 __all__ = [
-    "to_path",
-    "read_file",
-    "read_file_text",
-    "read_file_bytes",
+    "make_file_parent",
     "read_and_parse_file",
+    "read_file",
+    "read_file_bytes",
+    "read_file_text",
+    "to_path",
 ]

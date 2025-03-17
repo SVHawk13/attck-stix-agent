@@ -1,10 +1,10 @@
 import random
 from collections.abc import Generator, Iterable
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 from mitreattack.stix20 import MitreAttackData
 from stix2.datastore.memory import MemoryStore
-from stix2.v20.sdo import AttackPattern, IntrusionSet
+from stix2.v20.sdo import AttackPattern, IntrusionSet, Malware, Tool
 from stix2.v20.sro import Relationship
 
 from attck_stix_agent._serialize import StixProcessor
@@ -155,6 +155,29 @@ class AttckStixManager:
                 filtered_techniques.append(technique)
         return filtered_techniques
 
+    def _filter_software_platform(
+        self,
+        softwares: Iterable[
+            tuple[
+                Literal["malware", "tool", "other"],
+                dict[str, Malware | Tool | list[Relationship]],
+            ]
+        ],
+    ) -> Generator[
+        tuple[
+            Literal["malware", "tool", "other"],
+            dict[str, Malware | Tool | list[Relationship]],
+        ],
+        None,
+        None,
+    ]:
+        ignore_platforms: set[str] = set(self.ignore_platforms)
+        for software_data in softwares:
+            software = software_data[1]["object"]
+            technique_platform: set[str] = set(software.get("x_mitre_platforms", []))  # pyright: ignore [reportAttributeAccessIssue]
+            if not technique_platform.intersection(ignore_platforms):
+                yield software_data
+
     def get_subtechniques(self) -> list[AttackPattern]:
         if not self._all_subtechniques:
             self._all_subtechniques = self.attck_data.get_subtechniques(
@@ -220,3 +243,45 @@ class AttckStixManager:
             if technique:
                 techniques.append(technique)
         return techniques
+
+    def _software_used_by_group(
+        self, group: str | IntrusionSet
+    ) -> Generator[
+        tuple[
+            Literal["malware", "tool", "other"],
+            dict[str, Malware | Tool | list[Relationship]],
+        ],
+        None,
+        None,
+    ]:
+        if not group:
+            raise ValueError
+        group_id: str = (
+            group.get("id", "") if isinstance(group, IntrusionSet) else group
+        )
+        if not group_id:
+            raise ValueError
+
+        rel_maps: list[dict[str, Malware | Tool | list[Relationship]]] = (
+            self.attck_data.get_software_used_by_group(group_id)
+        )
+        for rel_map in rel_maps:
+            obj = rel_map.get("object", None)
+            if isinstance(obj, Malware):
+                obj_type = "malware"
+            elif isinstance(obj, Tool):
+                obj_type = "tool"
+            else:
+                obj_type = "other"
+            yield (obj_type, rel_map)
+
+    def software_used_by_group(
+        self, group: str | IntrusionSet
+    ) -> dict[str, list[Malware | Tool]]:
+        software_data = self._filter_software_platform(
+            self._software_used_by_group(group)
+        )
+        software: dict[str, list[Malware | Tool]] = {}
+        for software_type, rel_map in software_data:
+            software.setdefault(software_type, []).append(rel_map["object"])
+        return software

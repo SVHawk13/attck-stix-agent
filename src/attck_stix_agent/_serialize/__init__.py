@@ -1,7 +1,7 @@
 from collections.abc import Mapping, Sequence
 from typing import ClassVar
 
-from stix2.v20.sdo import AttackPattern, ExternalReference, IntrusionSet
+from stix2.v20.sdo import AttackPattern, ExternalReference, IntrusionSet, Malware, Tool
 
 
 class StixProcessor:
@@ -20,10 +20,30 @@ class StixProcessor:
         "external_references",
         "x_mitre_data_sources",
     )
+    DEFAULT_MALWARE_KEEP_KEYS: ClassVar[tuple[str, ...]] = (
+        "id",
+        "name",
+        "description",
+        "labels",
+        "external_references",
+        "x_mitre_aliases",
+        "x_mitre_platforms",
+    )
+    DEFAULT_TOOL_KEEP_KEYS: ClassVar[tuple[str, ...]] = (
+        "id",
+        "name",
+        "description",
+        "labels",
+        "external_references",
+        "x_mitre_aliases",
+        "x_mitre_platforms",
+    )
 
     def __init__(self) -> None:
         self.group_keep_keys: tuple[str, ...] = self.DEFAULT_GROUP_KEEP_KEYS
         self.technique_keep_keys: tuple[str, ...] = self.DEFAULT_TECHNIQUE_KEEP_KEYS
+        self.malware_keep_keys: tuple[str, ...] = self.DEFAULT_MALWARE_KEEP_KEYS
+        self.tool_keep_keys: tuple[str, ...] = self.DEFAULT_TOOL_KEEP_KEYS
 
     @classmethod
     def stix_to_dict(
@@ -117,3 +137,29 @@ class StixProcessor:
             )
             technique_dict["kill_chain_phases"] = kill_chain_phases
         return technique_dict
+
+    def malware_to_dict(
+        self, malware: Malware, keep_keys: Sequence[str] | None = None
+    ) -> dict:
+        if keep_keys is None:
+            keep_keys = self.malware_keep_keys
+
+        malware_dict: dict = self.stix_to_dict(stix_obj=malware, keep_keys=keep_keys)
+        return malware_dict
+
+    def tool_to_dict(self, tool: Tool, keep_keys: Sequence[str] | None = None) -> dict:
+        if keep_keys is None:
+            keep_keys = self.tool_keep_keys
+
+        tool_dict: dict = self.stix_to_dict(stix_obj=tool, keep_keys=keep_keys)
+        return tool_dict
+
+    def software_to_dict(
+        self, software: Malware | Tool, keep_keys: Sequence[str] | None = None
+    ) -> dict:
+        if isinstance(software, Malware):
+            return self.malware_to_dict(software, keep_keys=keep_keys)
+        elif isinstance(software, Tool):
+            return self.tool_to_dict(software, keep_keys=keep_keys)
+        else:
+            raise TypeError

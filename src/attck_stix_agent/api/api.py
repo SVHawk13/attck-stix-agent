@@ -16,6 +16,23 @@ def group_techniques(group: str, kill_chain: str | None = None) -> list[dict]:
     return techniques
 
 
+@api.get("/group/{group}/software")
+def group_software(group: str) -> dict[str, list[dict]]:
+    stix_softwares = stix_manager.software_used_by_group(group)
+    malwares = (
+        stix_manager.processor.software_to_dict(malware)
+        for malware in stix_softwares.pop("malware", [])
+    )
+    tools = (
+        stix_manager.processor.software_to_dict(tool)
+        for tool in stix_softwares.pop("tool", [])
+    )
+    return {
+        "malware": list(malwares),
+        "tools": list(tools),
+    }
+
+
 @api.get("/group/{group}")
 def get_group(group: str) -> dict:
     group_dict: dict = stix_manager.processor.group_to_dict(stix_manager.group(group))

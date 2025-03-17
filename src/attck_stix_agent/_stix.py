@@ -1,5 +1,6 @@
 from functools import partial
 from os import PathLike
+from pathlib import Path
 from typing import Any, ClassVar
 
 import requests
@@ -9,7 +10,7 @@ from stix2 import MemoryStore
 from stix2.v20.bundle import Bundle
 
 from attck_stix_agent.exceptions import StixImportError
-from attck_stix_agent.util import read_and_parse_file
+from attck_stix_agent.util import make_file_parent, read_and_parse_file, to_path
 from attck_stix_agent.validators import _is_url_valid
 
 DEFAULT_STIX_VERSION = "2.0"
@@ -24,6 +25,31 @@ class StixImporter:
         if stix_version:
             self.stix_version = stix_version
         self.allow_custom = allow_custom
+        self.cache_src: bool = True
+        self._cache_path: Path | None = None
+
+    @property
+    def cache_path(self) -> Path | None:
+        return self._cache_path
+
+    @cache_path.setter
+    def cache_path(self, __path: Path | str | None) -> None:
+        if __path is None:
+            self._cache_path = __path
+            return
+        self._cache_path = to_path(__path)
+
+    def _cache_stix_src(self, data: Bundle) -> None:
+        if not self.cache_src or self.cache_path is None:
+            return
+        stix_file_name = f"cache-stix-v{self.stix_version}.json"
+        stix_file = self.cache_path.joinpath(stix_file_name)
+        make_file_parent(stix_file)
+        if isinstance(data, Bundle):
+            with stix_file.open("wt") as fh:
+                data.fp_serialize(fh, pretty=False)
+        else:
+            raise NotImplementedError
 
     @property
     def stix_version(self) -> str:
@@ -115,6 +141,7 @@ class StixImporter:
             msg = "Failed to import STIX content"
             raise StixImportError(msg) from e
         else:
+            self._cache_stix_src(stix_data)
             memory_store = MemoryStore()
             memory_store.add(stix_data)
             return memory_store
