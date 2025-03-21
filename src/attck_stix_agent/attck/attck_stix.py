@@ -70,19 +70,32 @@ class AttckStixManager:
             self._ignored_platforms = ignored_platforms
             raise
 
+    def _update_platform_cache(self) -> None:
+        platforms = set()
+        for technique in self.get_techniques():
+            _platforms = technique.get("x_mitre_platforms", None)
+            if _platforms is not None:
+                platforms.update(_platforms)
+        self._all_platforms = sorted(platforms)
+
+    def _platform_update_ignored(self, platform: str, ignore: bool) -> None:
+        try:
+            ignored_idx = self._ignored_platforms.index(platform)
+        except ValueError:
+            ignored_idx = None
+        if ignore is True and ignored_idx is None:
+            self._ignored_platforms.append(platform)
+        elif ignore is False and ignored_idx is not None:
+            _ = self._ignored_platforms.pop(ignored_idx)
+
     def update_platform(self, platform: str, ignore: bool | None = None) -> None:
+        if not self._all_platforms:
+            self._update_platform_cache()
         if platform not in self._all_platforms:
             msg = f"invalid platform: {platform}"
             raise ValueError(msg)
         if ignore is not None:
-            try:
-                ignored_idx = self._ignored_platforms.index(platform)
-            except ValueError:
-                ignored_idx = None
-            if ignore is True and ignored_idx is None:
-                self._ignored_platforms.append(platform)
-            elif ignore is False and ignored_idx:
-                self._ignored_platforms.pop(ignored_idx)
+            self._platform_update_ignored(platform, ignore=ignore)
 
     def get_campaigns(self) -> list:
         if not self._all_campaigns:
@@ -221,12 +234,7 @@ class AttckStixManager:
 
     def get_platforms(self) -> list[str]:
         if not self._all_platforms:
-            platforms = set()
-            for technique in self.get_techniques():
-                _platforms = technique.get("x_mitre_platforms", None)
-                if _platforms is not None:
-                    platforms.update(_platforms)
-            self._all_platforms = sorted(platforms)
+            self._update_platform_cache()
         return self._all_platforms
 
     def platform_status(self, platform: str) -> dict[str, str | bool]:
