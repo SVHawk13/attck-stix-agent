@@ -41,6 +41,7 @@ extend-select = [
     "FAST",
     "I",
     "ICN",
+    "ISC",
     "N",
     "PERF",
     "PLC",
@@ -59,8 +60,8 @@ extend-select = [
     "W",
 ]
 ignore = [
-    "COM812",
-    "COM819",
+    "COM812", # avoid conflict with `ruff format`
+    "COM819", # avoid conflict with `ruff format`
     "D100",
     "D101",
     "D102",
@@ -69,21 +70,23 @@ ignore = [
     "D105",
     "D106",
     "D107",
-    "E111",
-    "E114",
-    "E117",
-    "ISC001",
-    "ISC002",
-    "Q000",
-    "Q001",
-    "Q002",
-    "Q003",
+    "D206",   # avoid conflict with `ruff format`
+    "D300",   # avoid conflict with `ruff format`
+    "E111",   # avoid conflict with `ruff format`
+    "E114",   # avoid conflict with `ruff format`
+    "E117",   # avoid conflict with `ruff format`
+    "Q000",   # avoid conflict with `ruff format`
+    "Q001",   # avoid conflict with `ruff format`
+    "Q002",   # avoid conflict with `ruff format`
+    "Q003",   # avoid conflict with `ruff format`
     "RET504",
     "S101",
-    "W191",
+    "W191",   # avoid conflict with `ruff format`
 ]
 
 [lint.flake8-implicit-str-concat]
+# Must be 'true' if ISC001 is disabled while ISC002 is enabled to avoid conflicts with
+# `ruff format`
 allow-multiline = true
 
 [lint.flake8-quotes]
