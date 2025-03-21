@@ -52,3 +52,13 @@ def all_groups() -> list[dict]:
         for group in stix_manager.get_groups()
     ]
     return groups
+
+
+@api.get("/platforms")
+def all_platforms() -> list[str]:
+    return stix_manager.get_platforms()
+
+
+@api.put("/platform/{name}/ignore")
+def ignore_platform(name: str):
+    stix_manager.ignore_platform(name)

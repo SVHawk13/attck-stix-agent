@@ -43,7 +43,7 @@ class AttckStixManager:
         self._all_techniques: list[AttackPattern] = []
         self._all_tactics: list = []
         self._all_platforms: list[str] = []
-        self._ignore_platforms: list[str] = []
+        self._ignored_platforms: list[str] = []
 
     def _load_memory_store(self, path: str, stix_version: str) -> MemoryStore:
         importer = StixImporter(stix_version=stix_version, allow_custom=True)
@@ -57,12 +57,25 @@ class AttckStixManager:
         return attck_data
 
     @property
-    def ignore_platforms(self) -> list[str]:
-        return self._ignore_platforms
+    def ignored_platforms(self) -> list[str]:
+        return self._ignored_platforms[:]
 
-    @ignore_platforms.setter
-    def ignore_platforms(self, platforms: list[str]) -> None:
-        self._ignore_platforms = platforms
+    @ignored_platforms.setter
+    def ignored_platforms(self, platforms: list[str]) -> None:
+        ignored_platforms = self._ignored_platforms[:]
+        try:
+            for platform in platforms:
+                self.ignore_platform(platform)
+        except ValueError:
+            self._ignored_platforms = ignored_platforms
+            raise
+
+    def ignore_platform(self, platform: str) -> None:
+        if platform not in self._all_platforms:
+            msg = f"invalid platform: {platform}"
+            raise ValueError(msg)
+        if platform not in self._ignored_platforms:
+            self._ignored_platforms.append(platform)
 
     def get_campaigns(self) -> list:
         if not self._all_campaigns:
@@ -148,10 +161,10 @@ class AttckStixManager:
         self, techniques: Iterable[AttackPattern]
     ) -> list[AttackPattern]:
         filtered_techniques: list[AttackPattern] = []
-        ignore_platforms: set[str] = set(self.ignore_platforms)
+        ignored_platforms: set[str] = set(self.ignored_platforms)
         for technique in techniques:
             technique_platform: set[str] = set(technique.get("x_mitre_platforms", []))
-            if not technique_platform.intersection(ignore_platforms):
+            if not technique_platform.intersection(ignored_platforms):
                 filtered_techniques.append(technique)
         return filtered_techniques
 
@@ -171,11 +184,11 @@ class AttckStixManager:
         None,
         None,
     ]:
-        ignore_platforms: set[str] = set(self.ignore_platforms)
+        ignored_platforms: set[str] = set(self.ignored_platforms)
         for software_data in softwares:
             software = software_data[1]["object"]
             technique_platform: set[str] = set(software.get("x_mitre_platforms", []))  # pyright: ignore [reportAttributeAccessIssue]
-            if not technique_platform.intersection(ignore_platforms):
+            if not technique_platform.intersection(ignored_platforms):
                 yield software_data
 
     def get_subtechniques(self) -> list[AttackPattern]:
