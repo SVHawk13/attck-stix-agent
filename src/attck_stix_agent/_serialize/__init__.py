@@ -1,7 +1,11 @@
 from collections.abc import Mapping, Sequence
-from typing import ClassVar
+from typing import ClassVar, TypeVar
 
 from stix2.v20.sdo import AttackPattern, ExternalReference, IntrusionSet, Malware, Tool
+
+from attck_stix_agent.util._citation import remove_citation
+
+T = TypeVar("T")
 
 
 class StixProcessor:
@@ -46,9 +50,13 @@ class StixProcessor:
         self.tool_keep_keys: tuple[str, ...] = self.DEFAULT_TOOL_KEEP_KEYS
 
     @classmethod
+    def _clean_stix_dict(cls, __obj: T) -> T:
+        return remove_citation(__obj)
+
+    @classmethod
     def stix_to_dict(
         cls, stix_obj: Mapping, keep_keys: Sequence[str] | None = None
-    ) -> dict:
+    ) -> dict[str, list | dict | str]:
         stix_dict: dict = {}
         for k, stix_val in stix_obj.items():
             if keep_keys and k not in keep_keys:
@@ -67,7 +75,7 @@ class StixProcessor:
                 stix_dict[k] = new_stix_val
             else:
                 stix_dict[k] = stix_val
-        return stix_dict
+        return cls._clean_stix_dict(stix_dict)
 
     @staticmethod
     def kill_chain_phases(
@@ -109,7 +117,6 @@ class StixProcessor:
 
     @staticmethod
     def _external_ref_to_dict(external_ref: ExternalReference) -> dict:
-        # return {k: v for k, v in external_ref.items()}
         return dict(external_ref)
 
     def group_to_dict(
