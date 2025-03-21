@@ -59,6 +59,11 @@ def all_platforms() -> list[str]:
     return stix_manager.get_platforms()
 
 
-@api.put("/platform/{name}/ignore")
-def ignore_platform(name: str):
-    stix_manager.ignore_platform(name)
+@api.get("/platform/{name}")
+def get_platform(name: str) -> dict[str, str | bool]:
+    return stix_manager.platform_status(name)
+
+
+@api.patch("/platform/{name}")
+def update_platform(name: str, ignore: bool) -> None:
+    stix_manager.update_platform(name, ignore=ignore)

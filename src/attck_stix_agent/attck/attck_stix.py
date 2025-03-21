@@ -65,17 +65,24 @@ class AttckStixManager:
         ignored_platforms = self._ignored_platforms[:]
         try:
             for platform in platforms:
-                self.ignore_platform(platform)
+                self.update_platform(platform, ignore=True)
         except ValueError:
             self._ignored_platforms = ignored_platforms
             raise
 
-    def ignore_platform(self, platform: str) -> None:
+    def update_platform(self, platform: str, ignore: bool | None = None) -> None:
         if platform not in self._all_platforms:
             msg = f"invalid platform: {platform}"
             raise ValueError(msg)
-        if platform not in self._ignored_platforms:
-            self._ignored_platforms.append(platform)
+        if ignore is not None:
+            try:
+                ignored_idx = self._ignored_platforms.index(platform)
+            except ValueError:
+                ignored_idx = None
+            if ignore is True and ignored_idx is None:
+                self._ignored_platforms.append(platform)
+            elif ignore is False and ignored_idx:
+                self._ignored_platforms.pop(ignored_idx)
 
     def get_campaigns(self) -> list:
         if not self._all_campaigns:
@@ -221,6 +228,13 @@ class AttckStixManager:
                     platforms.update(_platforms)
             self._all_platforms = sorted(platforms)
         return self._all_platforms
+
+    def platform_status(self, platform: str) -> dict[str, str | bool]:
+        platforms = self.get_platforms()
+        if platform not in platforms:
+            raise ValueError
+        ignored = True if platform in self._ignored_platforms else False
+        return {"name": platform, "ignored": ignored}
 
     def _get_techniques_used_by_group(
         self, group: str | IntrusionSet
